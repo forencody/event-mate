@@ -1274,29 +1274,22 @@ function googleSignIn(){
     msg.style.borderColor='rgba(26,154,131,.5)';
     msg.innerHTML='⏳ 正在連接 Google 登入...';
     var provider=new firebase.auth.GoogleAuthProvider();
-    var isIOS=/iPhone|iPad|iPod/i.test(navigator.userAgent);
-    var isStandalone=window.navigator.standalone===true;
-    // standalone PWA 模式用 popup（redirect 會跳出 App 且無法回傳結果）
-    // 一般 iOS Safari 用 redirect（popup 會被封鎖）
-    if(isIOS&&!isStandalone){
-      _auth.signInWithRedirect(provider).catch(function(e){
+    // 統一用 popup（iOS Safari redirect 在 GitHub Pages 因跨站追蹤封鎖會失敗）
+    _auth.signInWithPopup(provider).catch(function(e){
+      if(e.code==='auth/popup-blocked'){
+        msg.innerHTML='⏳ popup 被封鎖，改用跳轉登入...';
+        _auth.signInWithRedirect(provider).catch(function(e2){
+          msg.style.background='rgba(229,57,53,.25)';
+          msg.innerHTML='登入失敗：'+e2.message+' ('+e2.code+')';
+        });
+      } else if(e.code==='auth/popup-closed-by-user'||e.code==='auth/cancelled-popup-request'){
+        msg.style.display='none';
+      } else {
         msg.style.background='rgba(229,57,53,.25)';
         msg.innerHTML='登入失敗：'+e.message+' ('+e.code+')';
         msg.style.display='block';
-      });
-    } else {
-      _auth.signInWithPopup(provider).catch(function(e){
-        if(e.code==='auth/popup-blocked'||e.code==='auth/popup-closed-by-user'){
-          _auth.signInWithRedirect(provider).catch(function(e2){alert('登入失敗：'+e2.message);});
-        } else if(e.code==='auth/cancelled-popup-request'){
-          msg.style.display='none';
-        } else {
-          msg.style.background='rgba(229,57,53,.25)';
-          msg.innerHTML='登入失敗：'+e.message+' ('+e.code+')';
-          msg.style.display='block';
-        }
-      });
-    }
+      }
+    });
   }catch(err){
     alert('登入錯誤：'+err.message);
   }

@@ -1294,24 +1294,21 @@ function googleSignIn(){
     alert('登入錯誤：'+err.message);
   }
 }
-// 處理 redirect 回調（iOS 競速修正）
-var _redirectPending=true;
+// 處理 auth 狀態
 _auth.getRedirectResult().then(function(result){
-  _redirectPending=false;
-  if(result&&result.user){console.log('redirect ok:',result.user.email);}
+  if(result&&result.user){console.log('redirect login:',result.user.email);}
 }).catch(function(e){
-  _redirectPending=false;
-  if(e.code&&e.code!=='auth/no-auth-event'){
-    console.warn('redirect error:',e.code,e.message);
-    var msg=document.getElementById('loginErr');
-    if(msg){msg.style.display='block';msg.innerHTML='登入失敗：'+e.message;}
-  }
+  if(e.code&&e.code!=='auth/no-auth-event') console.warn('redirect error:',e.code);
 });
+var _authResolved=false;
+// 2.5s 保護期：等 popup/redirect 完成後才顯示登入頁
+setTimeout(function(){
+  if(!_authResolved){show('loginScreen');document.getElementById('app').style.display='none';}
+},2500);
 _auth.onAuthStateChanged(user=>{
-  if(!user){
-    if(_redirectPending){return;}
-    show('loginScreen');document.getElementById('app').style.display='none';return;
-  }  ACL_REF.once('value',s=>{
+  _authResolved=true;
+  if(!user){show('loginScreen');document.getElementById('app').style.display='none';return;}
+    ACL_REF.once('value',s=>{
     _acl=s.val()?Object.values(s.val()):[];
     renderCreatorDropdown(); // populate dropdown with ACL members
     const adm=user.email===SUPER_ADMIN, ok=adm||_acl.includes(user.email);

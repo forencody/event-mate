@@ -1261,12 +1261,31 @@ function isInAppBrowser(){
   return /FBAN|FBAV|Instagram|Line\/|KAKAOTALK|Zalo|MicroMessenger|GSA|LinkedInApp/.test(ua)
     || (/iPhone|iPad/.test(ua) && !/Safari\//.test(ua) && /AppleWebKit/.test(ua));
 }
+function isStandaloneIOS(){
+  return window.navigator.standalone===true && /iPhone|iPad|iPod/.test(navigator.userAgent);
+}
 function googleSignIn(){
   try{
     var msg=document.getElementById('loginErr');
     if(isInAppBrowser()){
       msg.style.display='block';
       msg.innerHTML='⚠️ 請用 <b>Safari</b> 或 <b>Chrome</b> 開啟此頁面後再登入。<br><small>從 App 內建瀏覽器無法完成 Google 登入。</small>';
+      return;
+    }
+    // iOS 桌面 App 模式：window.open() 在外部 Safari 開啟，沒有 window.opener
+    // Firebase popup handler 找不到 session → "missing initial state"
+    // 解法：引導用戶去 Safari 登入（同源 indexedDB 共享），再切回 PWA 自動生效
+    if(isStandaloneIOS()){
+      msg.style.display='block';
+      msg.style.background='rgba(26,154,131,.3)';
+      msg.style.borderColor='rgba(26,154,131,.5)';
+      msg.style.color='#fff';
+      msg.innerHTML='🍎 <b>iOS 桌面版登入說明</b><br>'
+        +'因 iOS 安全限制，請依以下步驟：<br><br>'
+        +'① 點下方「在 Safari 登入」<br>'
+        +'② 在 Safari 完成 Google 登入<br>'
+        +'③ 回主畫面再點 Event Mate 即自動登入 ✅<br>'
+        +'<button onclick="window.open(location.href,\'_blank\')" style="display:block;width:100%;margin-top:12px;padding:10px 14px;background:rgba(255,255,255,.22);border:1.5px solid rgba(255,255,255,.5);border-radius:8px;color:#fff;font-size:.9rem;cursor:pointer;font-weight:700;">🌐 在 Safari 中登入 →</button>';
       return;
     }
     msg.style.display='block';
@@ -1293,6 +1312,21 @@ function googleSignIn(){
   }catch(err){
     alert('登入錯誤：'+err.message);
   }
+}
+// iOS standalone：用戶在 Safari 登入後切回 PWA，偵測 visibilitychange 重載頁面
+// 同源（forencody.github.io）indexedDB 共享，重載後 onAuthStateChanged 自動帶入登入狀態
+if(window.navigator.standalone && /iPhone|iPad|iPod/.test(navigator.userAgent)){
+  var _pwaRefKey='_pwaAuthRef';
+  document.addEventListener('visibilitychange',function(){
+    if(!document.hidden && !_user){
+      var last=parseInt(localStorage.getItem(_pwaRefKey)||'0');
+      var now=Date.now();
+      if(now-last>8000){ // 每 8 秒最多重載一次，防迴圈
+        localStorage.setItem(_pwaRefKey,String(now));
+        setTimeout(function(){ if(!_user) window.location.reload(); },700);
+      }
+    }
+  });
 }
 // 處理 auth 狀態
 _auth.getRedirectResult().then(function(result){
